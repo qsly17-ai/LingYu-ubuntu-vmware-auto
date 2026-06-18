@@ -1,0 +1,22 @@
+# Generated local state
+build/
+downloads/
+machines/
+packer_cache/
+
+# Large VM and installer artifacts
+*.iso
+*.exe
+*.vmdk
+*.vmem
+*.vmss
+*.lck/
+*.nvram
+*.scoreboard
+*.vmsd
+*.vmxf
+
+# Logs and temporary files
+*.log
+*.tmp
+*.bak
