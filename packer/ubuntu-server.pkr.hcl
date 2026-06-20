@@ -42,6 +42,10 @@ variable "bootstrap_username" {
   type = string
 }
 
+variable "lock_bootstrap_user" {
+  type = bool
+}
+
 variable "cpu_count" {
   type = number
 }
@@ -104,13 +108,14 @@ build {
     inline = [
       "cloud-init status --wait",
       "systemctl is-active ssh",
-      "sshd -T | grep -i '^permitrootlogin '",
+      "sudo sshd -T | grep -i '^permitrootlogin '",
       "vmtoolsd --version || true",
       "sudo rm -f /etc/sudoers.d/90-codex-bootstrap",
-      "sudo passwd -l \"$BOOTSTRAP_USER\""
+      "if [ \"$LOCK_BOOTSTRAP_USER\" = \"true\" ]; then sudo passwd -l \"$BOOTSTRAP_USER\"; else echo \"Leaving bootstrap user enabled for first-login fallback.\"; fi"
     ]
     environment_vars = [
-      "BOOTSTRAP_USER=${var.bootstrap_username}"
+      "BOOTSTRAP_USER=${var.bootstrap_username}",
+      "LOCK_BOOTSTRAP_USER=${tostring(var.lock_bootstrap_user)}"
     ]
   }
 }

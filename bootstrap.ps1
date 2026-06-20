@@ -3,7 +3,13 @@ param(
     [string]$RepoZipUrl = 'https://github.com/qsly17-ai/LingYu-ubuntu-vmware-auto/archive/refs/heads/main.zip',
     [string]$InstallRoot = (Join-Path $env:USERPROFILE 'UbuntuVmwareAuto'),
     [string]$VmwareInstallerUrl,
+    [string]$VmwareInstallerPath,
     [string]$VmwareInstallerSha256,
+    [string]$VmName,
+    [string]$VmRoot,
+    [int]$CpuCount = 0,
+    [int]$MemoryMB = 0,
+    [int]$DiskMB = 0,
     [string]$UbuntuIsoUrl,
     [string]$UbuntuIsoChecksum,
     [switch]$SkipVmwareInstall,
@@ -12,7 +18,9 @@ param(
     [string]$RootPassword,
     [string]$RootPasswordHash,
     [switch]$ForceRebuild,
-    [switch]$ShowConsole
+    [switch]$ShowConsole,
+    [switch]$LockBootstrapUser,
+    [switch]$KeepBuildSecrets
 )
 
 Set-StrictMode -Version Latest
@@ -35,6 +43,19 @@ function Add-ArgIfValue {
 
     if (-not [string]::IsNullOrWhiteSpace($Value)) {
         return $Arguments + @($Name, $Value)
+    }
+    return $Arguments
+}
+
+function Add-ArgIfPositiveInt {
+    param(
+        [string[]]$Arguments,
+        [string]$Name,
+        [int]$Value
+    )
+
+    if ($Value -gt 0) {
+        return $Arguments + @($Name, [string]$Value)
     }
     return $Arguments
 }
@@ -70,7 +91,13 @@ try {
 
     $Args = @()
     $Args = Add-ArgIfValue -Arguments $Args -Name '-VmwareInstallerUrl' -Value $VmwareInstallerUrl
+    $Args = Add-ArgIfValue -Arguments $Args -Name '-VmwareInstallerPath' -Value $VmwareInstallerPath
     $Args = Add-ArgIfValue -Arguments $Args -Name '-VmwareInstallerSha256' -Value $VmwareInstallerSha256
+    $Args = Add-ArgIfValue -Arguments $Args -Name '-VmName' -Value $VmName
+    $Args = Add-ArgIfValue -Arguments $Args -Name '-VmRoot' -Value $VmRoot
+    $Args = Add-ArgIfPositiveInt -Arguments $Args -Name '-CpuCount' -Value $CpuCount
+    $Args = Add-ArgIfPositiveInt -Arguments $Args -Name '-MemoryMB' -Value $MemoryMB
+    $Args = Add-ArgIfPositiveInt -Arguments $Args -Name '-DiskMB' -Value $DiskMB
     $Args = Add-ArgIfValue -Arguments $Args -Name '-UbuntuIsoUrl' -Value $UbuntuIsoUrl
     $Args = Add-ArgIfValue -Arguments $Args -Name '-UbuntuIsoChecksum' -Value $UbuntuIsoChecksum
     $Args = Add-ArgIfValue -Arguments $Args -Name '-RootPassword' -Value $RootPassword
@@ -81,6 +108,8 @@ try {
     if ($BuildVm) { $Args += '-BuildVm' }
     if ($ForceRebuild) { $Args += '-ForceRebuild' }
     if ($ShowConsole) { $Args += '-ShowConsole' }
+    if ($LockBootstrapUser) { $Args += '-LockBootstrapUser' }
+    if ($KeepBuildSecrets) { $Args += '-KeepBuildSecrets' }
 
     Write-Host "[+] Running installer: $MainScript $($Args -join ' ')"
     & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $MainScript @Args

@@ -8,7 +8,7 @@ autoinstall:
   identity:
     hostname: ${hostname}
     username: ${bootstrap_username}
-    password: ${root_password_hash}
+    password: ${bootstrap_password_hash}
   ssh:
     install-server: true
     allow-pw: true

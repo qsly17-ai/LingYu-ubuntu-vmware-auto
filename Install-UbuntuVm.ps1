@@ -3,12 +3,16 @@ param(
     [string]$VmwareInstallerUrl = 'https://cf.comss.org/download/VMware-Workstation-Full-26H1-25388281.exe',
     [string]$VmwareInstallerPath,
     [string]$VmwareInstallerSha256,
+    [ValidatePattern('^[A-Za-z0-9][A-Za-z0-9.-]{0,62}$')]
     [string]$VmName = 'ubuntu-24.04-server-auto',
     [string]$VmRoot,
     [string]$RootPassword,
     [string]$RootPasswordHash,
+    [ValidateRange(1, 64)]
     [int]$CpuCount = 2,
+    [ValidateRange(1024, 1048576)]
     [int]$MemoryMB = 4096,
+    [ValidateRange(10240, 10485760)]
     [int]$DiskMB = 40960,
     [string]$UbuntuIsoUrl = 'https://releases.ubuntu.com/24.04/ubuntu-24.04.4-live-server-amd64.iso',
     [string]$UbuntuIsoChecksum = 'sha256:e907d92eeec9df64163a7e454cbc8d7755e8ddc7ed42f99dbc80c40f1a138433',
@@ -16,7 +20,9 @@ param(
     [switch]$BuildVm,
     [switch]$ForceRebuild,
     [switch]$ShowConsole,
-    [switch]$SkipVmwareInstall
+    [switch]$SkipVmwareInstall,
+    [switch]$LockBootstrapUser,
+    [switch]$KeepBuildSecrets
 )
 
 Set-StrictMode -Version Latest
@@ -34,6 +40,8 @@ $OutputDir = Join-Path $VmRoot $VmName
 $PackerTemplate = Join-Path $ScriptRoot 'packer\ubuntu-server.pkr.hcl'
 $UserDataTemplate = Join-Path $ScriptRoot 'cloud-init\user-data.tpl'
 $MetaDataTemplate = Join-Path $ScriptRoot 'cloud-init\meta-data'
+$DefaultVmwareInstallerUrlForHash = 'https://cf.comss.org/download/VMware-Workstation-Full-26H1-25388281.exe'
+$DefaultVmwareInstallerSha256 = 'sha256:a0ef9087607d9cad20b08139e73e41242e044ad5bd8cee141d3bad314586737f'
 $DefaultRootHash = '$6$codexroot$g7u9ONFT9aUgXnj/MaHVrj1Xqa2amNP2NIR7IriyJF1nJaScfV9V9yp9zzOA9kkE4Pzrl/9H2kzi1O/wZ..es.'
 
 function Write-Step {
@@ -127,6 +135,7 @@ function Get-VmwarePaths {
 
 function Get-PackerPath {
     Get-CommandPath -Name 'packer.exe' -FallbackPaths @(
+        "$env:LOCALAPPDATA\Microsoft\WinGet\Links\packer.exe",
         "$env:LOCALAPPDATA\Microsoft\WinGet\Packages\Hashicorp.Packer_Microsoft.Winget.Source_8wekyb3d8bbwe\packer.exe",
         'C:\Program Files\Packer\packer.exe'
     )
@@ -179,12 +188,24 @@ function Invoke-ExternalCapture {
 function Download-File {
     param(
         [Parameter(Mandatory = $true)][string]$Url,
-        [Parameter(Mandatory = $true)][string]$Destination
+        [Parameter(Mandatory = $true)][string]$Destination,
+        [int]$Retries = 3
     )
 
     New-Item -ItemType Directory -Force -Path (Split-Path -Parent $Destination) | Out-Null
-    Write-Step "Downloading $Url"
-    Invoke-WebRequest -Uri $Url -OutFile $Destination -UseBasicParsing
+    for ($Attempt = 1; $Attempt -le $Retries; $Attempt++) {
+        try {
+            Write-Step "Downloading $Url (attempt $Attempt/$Retries)"
+            Invoke-WebRequest -Uri $Url -OutFile $Destination -UseBasicParsing
+            return
+        } catch {
+            Remove-Item -LiteralPath $Destination -Force -ErrorAction SilentlyContinue
+            if ($Attempt -ge $Retries) {
+                throw "Download failed after $Retries attempts: $Url. $($_.Exception.Message)"
+            }
+            Start-Sleep -Seconds ([math]::Min(5 * $Attempt, 20))
+        }
+    }
 }
 
 function Get-Sha256 {
@@ -238,6 +259,7 @@ function Install-VMwareWorkstation {
         throw 'VMware Workstation is not installed and -SkipVmwareInstall was specified.'
     }
 
+    $UsingPinnedDefaultInstaller = [string]::IsNullOrWhiteSpace($InstallerPath) -and [string]::Equals($InstallerUrl, $DefaultVmwareInstallerUrlForHash, [System.StringComparison]::OrdinalIgnoreCase)
     if ([string]::IsNullOrWhiteSpace($InstallerPath)) {
         $FileName = Split-Path -Leaf ([Uri]$InstallerUrl).AbsolutePath
         if ([string]::IsNullOrWhiteSpace($FileName)) {
@@ -251,6 +273,11 @@ function Install-VMwareWorkstation {
                 Download-File -Url $InstallerUrl -Destination $InstallerPath
             }
         }
+    }
+
+    if ([string]::IsNullOrWhiteSpace($ExpectedSha256) -and $UsingPinnedDefaultInstaller) {
+        $ExpectedSha256 = $DefaultVmwareInstallerSha256
+        Write-Step "Using pinned SHA256 for default VMware installer: $ExpectedSha256"
     }
 
     if ($DryRun) {
@@ -317,7 +344,7 @@ function New-Sha512CryptHash {
 
     $OpenSsl = Get-OpenSslPath
     if (-not $OpenSsl) {
-        throw 'A custom -RootPassword requires openssl.exe to generate a SHA-512 crypt hash, or pass -RootPasswordHash.'
+        throw 'A custom -RootPassword requires openssl.exe to generate the temporary bootstrap SHA-512 crypt hash. Install Git for Windows/OpenSSL, or use -RootPassword root for a local test build.'
     }
 
     $Salt = -join ((48..57 + 65..90 + 97..122) | Get-Random -Count 16 | ForEach-Object { [char]$_ })
@@ -367,7 +394,8 @@ function Expand-Template {
 
 function New-GeneratedConfig {
     param(
-        [Parameter(Mandatory = $true)][string]$PasswordHash,
+        [Parameter(Mandatory = $true)][string]$RootAccountPasswordHash,
+        [Parameter(Mandatory = $true)][string]$BootstrapPasswordHash,
         [Parameter(Mandatory = $true)][string]$IsoSource
     )
 
@@ -379,7 +407,8 @@ function New-GeneratedConfig {
     $BootstrapUser = 'codex-bootstrap'
     $UserData = Get-Content -Raw -LiteralPath $UserDataTemplate
     $UserData = Expand-Template -Template $UserData -Values @{
-        root_password_hash = $PasswordHash
+        root_password_hash      = $RootAccountPasswordHash
+        bootstrap_password_hash = $BootstrapPasswordHash
         bootstrap_username = $BootstrapUser
         hostname           = $VmName
     }
@@ -402,6 +431,7 @@ function New-GeneratedConfig {
         bootstrap_username = $BootstrapUser
         ssh_username  = $BootstrapUser
         ssh_password  = $RootPassword
+        lock_bootstrap_user = $LockBootstrapUser.IsPresent
         cpu_count     = $CpuCount
         memory_mb     = $MemoryMB
         disk_size_mb  = $DiskMB
@@ -413,6 +443,8 @@ function New-GeneratedConfig {
         $Value = $Vars[$Key]
         if ($Value -is [int]) {
             "$Key = $Value"
+        } elseif ($Value -is [bool]) {
+            "$Key = $($Value.ToString().ToLowerInvariant())"
         } elseif ($Value -in @('true', 'false')) {
             "$Key = $Value"
         } else {
@@ -422,8 +454,23 @@ function New-GeneratedConfig {
     Set-Content -LiteralPath $VarFile -Value ($VarLines -join "`n") -Encoding ascii
 
     [pscustomobject]@{
-        VarFile = $VarFile
-        HttpDir = $HttpDir
+        VarFile      = $VarFile
+        HttpDir      = $HttpDir
+        GeneratedDir = $GeneratedDir
+    }
+}
+
+function Remove-BuildSecrets {
+    param([Parameter(Mandatory = $true)]$GeneratedConfig)
+
+    if ($KeepBuildSecrets) {
+        Write-Warn "Keeping generated build secrets in $($GeneratedConfig.GeneratedDir) because -KeepBuildSecrets was specified."
+        return
+    }
+
+    if ($GeneratedConfig.GeneratedDir -and (Test-Path -LiteralPath $GeneratedConfig.GeneratedDir)) {
+        Remove-Item -LiteralPath $GeneratedConfig.GeneratedDir -Recurse -Force -ErrorAction SilentlyContinue
+        Write-Step "Removed generated build secrets: $($GeneratedConfig.GeneratedDir)"
     }
 }
 
@@ -606,13 +653,18 @@ function Invoke-Main {
         return
     }
 
-    if (-not $RootPasswordHash -and [string]::IsNullOrWhiteSpace($RootPassword)) {
-        throw 'Pass -RootPassword or -RootPasswordHash when using -BuildVm. The default preparation mode does not set VM passwords.'
+    if ([string]::IsNullOrWhiteSpace($RootPassword)) {
+        throw 'Pass -RootPassword when using -BuildVm. Packer needs this plaintext password for the temporary bootstrap SSH user; -RootPasswordHash only overrides the final root account hash.'
     }
 
-    $PasswordHash = if ($RootPasswordHash) { $RootPasswordHash } else { New-Sha512CryptHash -Password $RootPassword }
-    $Generated = New-GeneratedConfig -PasswordHash $PasswordHash -IsoSource $IsoSource
-    Invoke-PackerBuild -PackerPath $PackerPath -VarFile $Generated.VarFile
+    $BootstrapPasswordHash = New-Sha512CryptHash -Password $RootPassword
+    $RootAccountPasswordHash = if ([string]::IsNullOrWhiteSpace($RootPasswordHash)) { $BootstrapPasswordHash } else { $RootPasswordHash }
+    $Generated = New-GeneratedConfig -RootAccountPasswordHash $RootAccountPasswordHash -BootstrapPasswordHash $BootstrapPasswordHash -IsoSource $IsoSource
+    try {
+        Invoke-PackerBuild -PackerPath $PackerPath -VarFile $Generated.VarFile
+    } finally {
+        Remove-BuildSecrets -GeneratedConfig $Generated
+    }
 
     $VmwarePaths = Get-VmwarePaths
     if (-not $VmwarePaths.VmrunExe) {
