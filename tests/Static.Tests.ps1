@@ -95,6 +95,8 @@ Assert-Contains $BootstrapScript 'Invoke-WebRequest' 'Bootstrap script must down
 Assert-Contains $BootstrapScript 'Expand-Archive' 'Bootstrap script must expand the repository archive.'
 Assert-Contains $BootstrapScript 'Install-UbuntuVm.ps1' 'Bootstrap script must run the main installer.'
 Assert-Contains $BootstrapScript 'OWNER placeholder' 'Bootstrap script must guard against an unpublished placeholder URL.'
+Assert-True -Condition (-not $BootstrapScript.Contains("Copy-Item -LiteralPath (Join-Path `$SourceRoot.FullName '*')")) -Message 'Bootstrap must not use -LiteralPath with a wildcard when copying repository files.'
+Assert-Contains $BootstrapScript 'Get-ChildItem -LiteralPath $SourceRoot.FullName -Force' 'Bootstrap must enumerate extracted repository files before copying.'
 Assert-Contains $BootstrapScript 'LockBootstrapUser' 'Bootstrap must forward LockBootstrapUser.'
 Assert-Contains $BootstrapScript 'KeepBuildSecrets' 'Bootstrap must forward KeepBuildSecrets.'
 

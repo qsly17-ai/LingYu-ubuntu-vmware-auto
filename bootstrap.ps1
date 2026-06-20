@@ -82,7 +82,11 @@ try {
     }
 
     Write-Host "[+] Installing project files to $InstallRoot"
-    Copy-Item -LiteralPath (Join-Path $SourceRoot.FullName '*') -Destination $InstallRoot -Recurse -Force
+    $ProjectItems = Get-ChildItem -LiteralPath $SourceRoot.FullName -Force
+    if (-not $ProjectItems) {
+        throw 'Downloaded repository archive did not contain project files.'
+    }
+    $ProjectItems | Copy-Item -Destination $InstallRoot -Recurse -Force -ErrorAction Stop
 
     $MainScript = Join-Path $InstallRoot 'Install-UbuntuVm.ps1'
     if (-not (Test-Path -LiteralPath $MainScript)) {
