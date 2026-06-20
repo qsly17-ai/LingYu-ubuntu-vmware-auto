@@ -115,7 +115,7 @@ build {
     ]
     environment_vars = [
       "BOOTSTRAP_USER=${var.bootstrap_username}",
-      "LOCK_BOOTSTRAP_USER=${tostring(var.lock_bootstrap_user)}"
+      "LOCK_BOOTSTRAP_USER=${var.lock_bootstrap_user ? "true" : "false"}"
     ]
   }
 }

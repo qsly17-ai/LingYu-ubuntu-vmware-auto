@@ -125,6 +125,7 @@ Assert-Contains $PackerTemplate 'variable "bootstrap_username"' 'Bootstrap usern
 Assert-Contains $PackerTemplate 'variable "lock_bootstrap_user"' 'Bootstrap lock policy variable is missing.'
 Assert-Contains $PackerTemplate 'sudo rm -f /etc/sudoers.d/90-codex-bootstrap' 'Bootstrap sudoers cleanup is missing.'
 Assert-Contains $PackerTemplate 'LOCK_BOOTSTRAP_USER' 'Bootstrap user locking must be conditional.'
+Assert-True -Condition (-not $PackerTemplate.Contains('tostring(')) -Message 'Packer template must not use tostring(); Packer 1.15.4 does not provide that function.'
 Assert-Contains $PackerTemplate 'sudo passwd -l \"$BOOTSTRAP_USER\"' 'Bootstrap user should be locked after Packer connects successfully.'
 
 Assert-Contains $UserDataTemplate '#cloud-config' 'cloud-init header is missing.'
