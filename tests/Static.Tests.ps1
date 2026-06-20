@@ -121,6 +121,7 @@ Assert-Contains $PackerTemplate 'http_directory' 'NoCloud HTTP directory is miss
 Assert-Contains $PackerTemplate 'autoinstall ''ds=nocloud;s=http://{{ .HTTPIP }}:{{ .HTTPPort }}/''' 'Ubuntu autoinstall boot command is missing.'
 Assert-Contains $PackerTemplate 'ssh_username' 'SSH communicator config is missing.'
 Assert-Contains $PackerTemplate 'ssh_password' 'SSH password config is missing.'
+Assert-Contains $PackerTemplate 'ssh_handshake_attempts = 720' 'Packer must tolerate long Ubuntu autoinstall runs before final SSH credentials become valid.'
 Assert-Contains $PackerTemplate 'variable "bootstrap_username"' 'Bootstrap username variable is missing.'
 Assert-Contains $PackerTemplate 'variable "lock_bootstrap_user"' 'Bootstrap lock policy variable is missing.'
 Assert-Contains $PackerTemplate 'sudo rm -f /etc/sudoers.d/90-codex-bootstrap' 'Bootstrap sudoers cleanup is missing.'

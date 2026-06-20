@@ -96,8 +96,8 @@ source "vmware-iso" "ubuntu_server" {
   communicator           = "ssh"
   ssh_username           = var.ssh_username
   ssh_password           = var.ssh_password
-  ssh_timeout            = "90m"
-  ssh_handshake_attempts = 120
+  ssh_timeout            = "120m"
+  ssh_handshake_attempts = 720
   shutdown_command       = "shutdown -P now"
 }
 
