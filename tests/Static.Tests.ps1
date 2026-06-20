@@ -97,6 +97,9 @@ Assert-Contains $BootstrapScript 'Install-UbuntuVm.ps1' 'Bootstrap script must r
 Assert-Contains $BootstrapScript 'OWNER placeholder' 'Bootstrap script must guard against an unpublished placeholder URL.'
 Assert-True -Condition (-not $BootstrapScript.Contains("Copy-Item -LiteralPath (Join-Path `$SourceRoot.FullName '*')")) -Message 'Bootstrap must not use -LiteralPath with a wildcard when copying repository files.'
 Assert-Contains $BootstrapScript 'Get-ChildItem -LiteralPath $SourceRoot.FullName -Force' 'Bootstrap must enumerate extracted repository files before copying.'
+Assert-True -Condition (-not $BootstrapScript.Contains('$Args')) -Message 'Bootstrap must not use $Args because it collides with PowerShell automatic $args under strict mode.'
+Assert-True -Condition (-not $BootstrapScript.Contains('@Args')) -Message 'Bootstrap must not splat @Args because it collides with PowerShell automatic $args under strict mode.'
+Assert-Contains $BootstrapScript '$ForwardArgs' 'Bootstrap must use a non-automatic variable name for forwarded arguments.'
 Assert-Contains $BootstrapScript 'LockBootstrapUser' 'Bootstrap must forward LockBootstrapUser.'
 Assert-Contains $BootstrapScript 'KeepBuildSecrets' 'Bootstrap must forward KeepBuildSecrets.'
 

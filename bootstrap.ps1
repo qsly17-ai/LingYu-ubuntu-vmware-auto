@@ -93,30 +93,30 @@ try {
         throw "Main script was not found after install: $MainScript"
     }
 
-    $Args = @()
-    $Args = Add-ArgIfValue -Arguments $Args -Name '-VmwareInstallerUrl' -Value $VmwareInstallerUrl
-    $Args = Add-ArgIfValue -Arguments $Args -Name '-VmwareInstallerPath' -Value $VmwareInstallerPath
-    $Args = Add-ArgIfValue -Arguments $Args -Name '-VmwareInstallerSha256' -Value $VmwareInstallerSha256
-    $Args = Add-ArgIfValue -Arguments $Args -Name '-VmName' -Value $VmName
-    $Args = Add-ArgIfValue -Arguments $Args -Name '-VmRoot' -Value $VmRoot
-    $Args = Add-ArgIfPositiveInt -Arguments $Args -Name '-CpuCount' -Value $CpuCount
-    $Args = Add-ArgIfPositiveInt -Arguments $Args -Name '-MemoryMB' -Value $MemoryMB
-    $Args = Add-ArgIfPositiveInt -Arguments $Args -Name '-DiskMB' -Value $DiskMB
-    $Args = Add-ArgIfValue -Arguments $Args -Name '-UbuntuIsoUrl' -Value $UbuntuIsoUrl
-    $Args = Add-ArgIfValue -Arguments $Args -Name '-UbuntuIsoChecksum' -Value $UbuntuIsoChecksum
-    $Args = Add-ArgIfValue -Arguments $Args -Name '-RootPassword' -Value $RootPassword
-    $Args = Add-ArgIfValue -Arguments $Args -Name '-RootPasswordHash' -Value $RootPasswordHash
+    $ForwardArgs = @()
+    $ForwardArgs = Add-ArgIfValue -Arguments $ForwardArgs -Name '-VmwareInstallerUrl' -Value $VmwareInstallerUrl
+    $ForwardArgs = Add-ArgIfValue -Arguments $ForwardArgs -Name '-VmwareInstallerPath' -Value $VmwareInstallerPath
+    $ForwardArgs = Add-ArgIfValue -Arguments $ForwardArgs -Name '-VmwareInstallerSha256' -Value $VmwareInstallerSha256
+    $ForwardArgs = Add-ArgIfValue -Arguments $ForwardArgs -Name '-VmName' -Value $VmName
+    $ForwardArgs = Add-ArgIfValue -Arguments $ForwardArgs -Name '-VmRoot' -Value $VmRoot
+    $ForwardArgs = Add-ArgIfPositiveInt -Arguments $ForwardArgs -Name '-CpuCount' -Value $CpuCount
+    $ForwardArgs = Add-ArgIfPositiveInt -Arguments $ForwardArgs -Name '-MemoryMB' -Value $MemoryMB
+    $ForwardArgs = Add-ArgIfPositiveInt -Arguments $ForwardArgs -Name '-DiskMB' -Value $DiskMB
+    $ForwardArgs = Add-ArgIfValue -Arguments $ForwardArgs -Name '-UbuntuIsoUrl' -Value $UbuntuIsoUrl
+    $ForwardArgs = Add-ArgIfValue -Arguments $ForwardArgs -Name '-UbuntuIsoChecksum' -Value $UbuntuIsoChecksum
+    $ForwardArgs = Add-ArgIfValue -Arguments $ForwardArgs -Name '-RootPassword' -Value $RootPassword
+    $ForwardArgs = Add-ArgIfValue -Arguments $ForwardArgs -Name '-RootPasswordHash' -Value $RootPasswordHash
 
-    if ($SkipVmwareInstall) { $Args += '-SkipVmwareInstall' }
-    if ($DryRun) { $Args += '-DryRun' }
-    if ($BuildVm) { $Args += '-BuildVm' }
-    if ($ForceRebuild) { $Args += '-ForceRebuild' }
-    if ($ShowConsole) { $Args += '-ShowConsole' }
-    if ($LockBootstrapUser) { $Args += '-LockBootstrapUser' }
-    if ($KeepBuildSecrets) { $Args += '-KeepBuildSecrets' }
+    if ($SkipVmwareInstall) { $ForwardArgs += '-SkipVmwareInstall' }
+    if ($DryRun) { $ForwardArgs += '-DryRun' }
+    if ($BuildVm) { $ForwardArgs += '-BuildVm' }
+    if ($ForceRebuild) { $ForwardArgs += '-ForceRebuild' }
+    if ($ShowConsole) { $ForwardArgs += '-ShowConsole' }
+    if ($LockBootstrapUser) { $ForwardArgs += '-LockBootstrapUser' }
+    if ($KeepBuildSecrets) { $ForwardArgs += '-KeepBuildSecrets' }
 
-    Write-Host "[+] Running installer: $MainScript $($Args -join ' ')"
-    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $MainScript @Args
+    Write-Host "[+] Running installer: $MainScript $($ForwardArgs -join ' ')"
+    & powershell.exe -NoProfile -ExecutionPolicy Bypass -File $MainScript @ForwardArgs
 } finally {
     Remove-Item -LiteralPath $TempRoot -Recurse -Force -ErrorAction SilentlyContinue
 }
